@@ -2,7 +2,7 @@ const { Schema, model } = require("mongoose");
 const bcrypt = require("bcrypt");
 const JWT = require("jsonwebtoken");
 require("dotenv").config();
-
+// const Blog  = require("./blogModels");
 const userSchema = new Schema(
   {
     userName: {
@@ -19,39 +19,45 @@ const userSchema = new Schema(
       type: String,
       required: true,
     },
-    // resetPasswordToken: String,
-    // resetPasswordExpires: Date,
+    blogs: [
+      {
+        type: Schema.Types.ObjectId,
+        ref: "Blog",
+      },
+    ],
+    resetPasswordToken: String,
+    resetPasswordExpires: Date,
   },
   { timestamps: true }
 );
 
-userSchema.pre("save", async function () {
+userSchema.pre("save", async function (next) {
   const user = this;
   if (!user.isModified("password")) {
-    next();
+    return next();
   }
   try {
     const salt = await bcrypt.genSalt(10);
     const hash_password = await bcrypt.hash(user.password, salt);
     user.password = hash_password;
+    return next();
   } catch (error) {
-    next(error);
+    return next(error);
   }
 });
 
-//compare the password
+// Compare the password
 userSchema.methods.comparePassword = async function (password) {
   return await bcrypt.compare(password, this.password);
 };
 
-//jsonwebtoken
+// Generate JWT token
 userSchema.methods.generateToken = async function () {
   try {
     const token = JWT.sign(
       {
         userId: this._id.toString(),
         email: this.email,
-       
       },
       process.env.JWT_SECRET
     );
@@ -63,8 +69,5 @@ userSchema.methods.generateToken = async function () {
   }
 };
 
-const User = model("user", userSchema);
-module.exports = {
-  User,
-};
-
+const User = model("User", userSchema);
+module.exports =  User ;
