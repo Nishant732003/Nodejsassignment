@@ -35,12 +35,9 @@ const createBlogs = async (req, res) => {
 
     const coverImageURL = await uploadOnCloudinary(file);
 
-    const encryptedTitle = CryptoJS.AES.encrypt(
-      title,
-      ENCRYPTION_KEY
-    ).toString();
+    const encryptedTitle = CryptoJS.AES.encrypt(title, ENCRYPTION_KEY).toString();
     const encryptedBody = CryptoJS.AES.encrypt(body, ENCRYPTION_KEY).toString();
-
+    
     const newBlog = new Blog({
       title: encryptedTitle,
       body: encryptedBody,
@@ -61,6 +58,7 @@ const createBlogs = async (req, res) => {
         body: body,
       },
     });
+
   } catch (error) {
     console.log(error);
     return res.status(400).send({
@@ -77,16 +75,10 @@ const getAllBlogs = async (req, res) => {
       .populate("createdBy", "userName email")
       .populate("comments")
       .populate("likes");
-
+     
     const decryptedBlogs = blogs.map((blog) => {
-      const decryptedTitle = CryptoJS.AES.decrypt(
-        blog.title,
-        ENCRYPTION_KEY
-      ).toString(CryptoJS.enc.Utf8);
-      const decryptedBody = CryptoJS.AES.decrypt(
-        blog.body,
-        ENCRYPTION_KEY
-      ).toString(CryptoJS.enc.Utf8);
+      const decryptedTitle = CryptoJS.AES.decrypt(blog.title, ENCRYPTION_KEY).toString(CryptoJS.enc.Utf8);
+      const decryptedBody = CryptoJS.AES.decrypt(blog.body, ENCRYPTION_KEY).toString(CryptoJS.enc.Utf8);
 
       return {
         ...blog._doc,
@@ -100,12 +92,13 @@ const getAllBlogs = async (req, res) => {
       message: "BlogPosts fetched successfully",
       blogs: decryptedBlogs,
     });
+
   } catch (error) {
     console.error("Error fetching blogs:", error);
     return res.status(500).json({
       success: false,
       message: "Error while fetching blogs",
-      error: error.message,
+      error: error.message, 
     });
   }
 };
@@ -117,7 +110,7 @@ const getBlogById = async (req, res) => {
       .populate("createdBy", "userName email")
       .populate("comments")
       .populate("likes");
-
+    
     if (!blog) {
       return res.status(404).json({
         success: false,
@@ -126,14 +119,8 @@ const getBlogById = async (req, res) => {
     }
 
     try {
-      const decryptedTitle = CryptoJS.AES.decrypt(
-        blog.title,
-        ENCRYPTION_KEY
-      ).toString(CryptoJS.enc.Utf8);
-      const decryptedBody = CryptoJS.AES.decrypt(
-        blog.body,
-        ENCRYPTION_KEY
-      ).toString(CryptoJS.enc.Utf8);
+      const decryptedTitle = CryptoJS.AES.decrypt(blog.title, ENCRYPTION_KEY).toString(CryptoJS.enc.Utf8);
+      const decryptedBody = CryptoJS.AES.decrypt(blog.body, ENCRYPTION_KEY).toString(CryptoJS.enc.Utf8);
 
       const decryptedBlog = {
         ...blog._doc,
@@ -146,6 +133,7 @@ const getBlogById = async (req, res) => {
         message: "BlogPost fetched successfully",
         blog: decryptedBlog,
       });
+
     } catch (decryptionError) {
       console.error("Error decrypting blog data:", decryptionError);
       return res.status(500).json({
@@ -193,18 +181,12 @@ const updateBlogById = async (req, res) => {
     }
 
     if (title) {
-      const encryptedTitle = CryptoJS.AES.encrypt(
-        title,
-        ENCRYPTION_KEY
-      ).toString();
+      const encryptedTitle = CryptoJS.AES.encrypt(title, ENCRYPTION_KEY).toString();
       blog.title = encryptedTitle;
     }
 
     if (body) {
-      const encryptedBody = CryptoJS.AES.encrypt(
-        body,
-        ENCRYPTION_KEY
-      ).toString();
+      const encryptedBody = CryptoJS.AES.encrypt(body, ENCRYPTION_KEY).toString();
       blog.body = encryptedBody;
     }
 
@@ -217,16 +199,8 @@ const updateBlogById = async (req, res) => {
 
     const decryptedBlog = {
       ...blog._doc,
-      title:
-        title ||
-        CryptoJS.AES.decrypt(blog.title, ENCRYPTION_KEY).toString(
-          CryptoJS.enc.Utf8
-        ),
-      body:
-        body ||
-        CryptoJS.AES.decrypt(blog.body, ENCRYPTION_KEY).toString(
-          CryptoJS.enc.Utf8
-        ),
+      title: title || CryptoJS.AES.decrypt(blog.title, ENCRYPTION_KEY).toString(CryptoJS.enc.Utf8),
+      body: body || CryptoJS.AES.decrypt(blog.body, ENCRYPTION_KEY).toString(CryptoJS.enc.Utf8),
     };
 
     return res.status(200).json({
@@ -319,10 +293,7 @@ const addCommentOnBlog = async (req, res) => {
       });
     }
 
-    const encryptedContent = CryptoJS.AES.encrypt(
-      content,
-      ENCRYPTION_KEY
-    ).toString();
+    const encryptedContent = CryptoJS.AES.encrypt(content, ENCRYPTION_KEY).toString();
 
     const newComment = new Comment({
       content: encryptedContent,
@@ -395,6 +366,7 @@ const addLikeOnBlog = async (req, res) => {
       success: true,
       message: "BlogPost liked successfully",
     });
+      
   } catch (error) {
     console.error("Error adding like:", error);
     return res.status(500).json({
@@ -406,11 +378,11 @@ const addLikeOnBlog = async (req, res) => {
 };
 
 module.exports = {
-  createBlogs,
-  getAllBlogs,
-  getBlogById,
-  updateBlogById,
-  deleteBlogById,
-  addCommentOnBlog,
-  addLikeOnBlog,
+    createBlogs,
+    getAllBlogs,
+    getBlogById,
+    updateBlogById,
+    deleteBlogById,
+    addCommentOnBlog,
+    addLikeOnBlog
 };

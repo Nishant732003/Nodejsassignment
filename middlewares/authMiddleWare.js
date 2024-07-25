@@ -19,6 +19,7 @@ const authMiddleware = (req, res, next) => {
     }
 
     req.user = { id: decoded.userId };
+      console.log(req.user, "userrequest");
     next();
   } catch (error) {
     console.error("Token verification error:", error);
