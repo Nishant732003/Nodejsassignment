@@ -1,18 +1,24 @@
 const Blog = require("../models/blogModels");
-const User  = require("../models/userModel");
+const User = require("../models/userModel");
 const uploadOnCloudinary = require("../fileUpload/cloudinary");
 const Comment = require("../models/commentSchema");
 const CryptoJS = require("crypto-js");
 
-
-const ENCRYPTION_KEY = process.env.ENCRYPTION_KEY; 
+const ENCRYPTION_KEY = process.env.ENCRYPTION_KEY;
 
 const createBlogs = async (req, res) => {
   try {
     const { title, body, user } = req.body;
     const file = req.file;
 
-    if (!title || !body || !file || !user) {
+    if (user !== req.user.id) {
+      return res.status(403).send({
+        success: false,
+        message: "User ID does not match the authenticated user",
+      });
+    }
+
+    if (!title || !body || !file) {
       return res.status(400).send({
         success: false,
         message: "Please provide all fields",
@@ -29,13 +35,15 @@ const createBlogs = async (req, res) => {
 
     const coverImageURL = await uploadOnCloudinary(file);
 
-    //encrypt the title and body
-    const encryptedTitle = CryptoJS.AES.encrypt(title, ENCRYPTION_KEY).toString();
+    const encryptedTitle = CryptoJS.AES.encrypt(
+      title,
+      ENCRYPTION_KEY
+    ).toString();
     const encryptedBody = CryptoJS.AES.encrypt(body, ENCRYPTION_KEY).toString();
-    
+
     const newBlog = new Blog({
-      title:encryptedTitle,
-      body:encryptedBody,
+      title: encryptedTitle,
+      body: encryptedBody,
       coverImageURL,
       createdBy: user,
     });
@@ -46,24 +54,22 @@ const createBlogs = async (req, res) => {
 
     return res.status(201).send({
       success: true,
-      message: "BlogPosts created",
+      message: "BlogPost created",
       newBlog: {
         ...newBlog._doc,
         title: title,
-        body:body,
+        body: body,
       },
     });
-
   } catch (error) {
     console.log(error);
     return res.status(400).send({
       success: false,
       message: "Error while creating blog",
-      error,
+      error: error.message,
     });
   }
 };
-
 
 const getAllBlogs = async (req, res) => {
   try {
@@ -71,13 +77,12 @@ const getAllBlogs = async (req, res) => {
       .populate("createdBy", "userName email")
       .populate("comments")
       .populate("likes");
-     
+
     const decryptedBlogs = blogs.map((blog) => {
       const decryptedTitle = CryptoJS.AES.decrypt(
         blog.title,
         ENCRYPTION_KEY
       ).toString(CryptoJS.enc.Utf8);
-
       const decryptedBody = CryptoJS.AES.decrypt(
         blog.body,
         ENCRYPTION_KEY
@@ -93,34 +98,27 @@ const getAllBlogs = async (req, res) => {
     return res.status(200).json({
       success: true,
       message: "BlogPosts fetched successfully",
-      blogs:decryptedBlogs,
+      blogs: decryptedBlogs,
     });
-
   } catch (error) {
     console.error("Error fetching blogs:", error);
     return res.status(500).json({
       success: false,
       message: "Error while fetching blogs",
-      error: error.message, 
+      error: error.message,
     });
   }
 };
 
-
 const getBlogById = async (req, res) => {
-     console.log("getBlogById called with id:", req.params.id);
   try {
-
     const { id } = req.params;
-      console.log("id", id);
     const blog = await Blog.findById(id)
       .populate("createdBy", "userName email")
       .populate("comments")
       .populate("likes");
-    
-    console.log("blogs", blog);
-    
-     if (!blog) {
+
+    if (!blog) {
       return res.status(404).json({
         success: false,
         message: "BlogPost not found",
@@ -128,12 +126,10 @@ const getBlogById = async (req, res) => {
     }
 
     try {
-
       const decryptedTitle = CryptoJS.AES.decrypt(
         blog.title,
         ENCRYPTION_KEY
       ).toString(CryptoJS.enc.Utf8);
-
       const decryptedBody = CryptoJS.AES.decrypt(
         blog.body,
         ENCRYPTION_KEY
@@ -150,7 +146,6 @@ const getBlogById = async (req, res) => {
         message: "BlogPost fetched successfully",
         blog: decryptedBlog,
       });
-
     } catch (decryptionError) {
       console.error("Error decrypting blog data:", decryptionError);
       return res.status(500).json({
@@ -169,13 +164,18 @@ const getBlogById = async (req, res) => {
   }
 };
 
-
 const updateBlogById = async (req, res) => {
-
   try {
     const { id } = req.params;
     const { title, body, user } = req.body;
     const file = req.file;
+
+    if (user !== req.user.id) {
+      return res.status(403).send({
+        success: false,
+        message: "User ID does not match the authenticated user",
+      });
+    }
 
     const blog = await Blog.findById(id);
     if (!blog) {
@@ -183,7 +183,14 @@ const updateBlogById = async (req, res) => {
         success: false,
         message: "BlogPost not found",
       });
-    };
+    }
+
+    if (blog.createdBy.toString() !== user) {
+      return res.status(403).json({
+        success: false,
+        message: "You are not authorized to update this blog",
+      });
+    }
 
     if (title) {
       const encryptedTitle = CryptoJS.AES.encrypt(
@@ -201,8 +208,6 @@ const updateBlogById = async (req, res) => {
       blog.body = encryptedBody;
     }
 
-    if (user) blog.createdBy = user;
-
     if (file) {
       const coverImageURL = await uploadOnCloudinary(file);
       blog.coverImageURL = coverImageURL;
@@ -210,7 +215,6 @@ const updateBlogById = async (req, res) => {
 
     await blog.save();
 
-    // Decrypt the data before sending the response
     const decryptedBlog = {
       ...blog._doc,
       title:
@@ -228,7 +232,7 @@ const updateBlogById = async (req, res) => {
     return res.status(200).json({
       success: true,
       message: "BlogPost updated successfully",
-      blog:decryptedBlog,
+      blog: decryptedBlog,
     });
   } catch (error) {
     console.error("Error updating blog:", error);
@@ -240,25 +244,42 @@ const updateBlogById = async (req, res) => {
   }
 };
 
-
 const deleteBlogById = async (req, res) => {
   try {
     const { id } = req.params;
+    const { user } = req.body;
 
-    const blog = await Blog.findByIdAndDelete(id);
+    if (user !== req.user.id) {
+      return res.status(403).send({
+        success: false,
+        message: "User ID does not match the authenticated user",
+      });
+    }
+
+    const blog = await Blog.findById(id);
     if (!blog) {
       return res.status(404).json({
         success: false,
         message: "BlogPost not found",
       });
     }
-     // Remove the blog reference from the user's blogs array
-    const user = await User.findById(blog.createdBy);
-    if (user) {
-      user.blogs.pull(blog._id);
-      await user.save();
-      }
-      return res.status(200).json({
+
+    if (blog.createdBy.toString() !== user) {
+      return res.status(403).json({
+        success: false,
+        message: "You are not authorized to delete this blog",
+      });
+    }
+
+    await Blog.findByIdAndDelete(id);
+
+    const userDoc = await User.findById(user);
+    if (userDoc) {
+      userDoc.blogs.pull(id);
+      await userDoc.save();
+    }
+
+    return res.status(200).json({
       success: true,
       message: "BlogPost deleted successfully",
     });
@@ -272,14 +293,18 @@ const deleteBlogById = async (req, res) => {
   }
 };
 
-
 const addCommentOnBlog = async (req, res) => {
-  console.log("Received request body:", req.body);
   try {
     const { blogId, content, user } = req.body;
-    console.log("Extracted fields:", { blogId, content, user });
 
-    if (!blogId || !content || !user) {
+    if (user !== req.user.id) {
+      return res.status(403).send({
+        success: false,
+        message: "User ID does not match the authenticated user",
+      });
+    }
+
+    if (!blogId || !content) {
       return res.status(400).json({
         success: false,
         message: "Please provide all fields",
@@ -310,7 +335,6 @@ const addCommentOnBlog = async (req, res) => {
     existingBlog.comments.push(newComment._id);
     await existingBlog.save();
 
-    // Decrypt the content before sending the response
     const decryptedComment = {
       ...newComment._doc,
       content: content,
@@ -331,15 +355,21 @@ const addCommentOnBlog = async (req, res) => {
   }
 };
 
-
 const addLikeOnBlog = async (req, res) => {
   try {
     const { blogId, user } = req.body;
 
-    if (!blogId || !user) {
+    if (user !== req.user.id) {
+      return res.status(403).send({
+        success: false,
+        message: "User ID does not match the authenticated user",
+      });
+    }
+
+    if (!blogId) {
       return res.status(400).json({
         success: false,
-        message: "Please provide all fields",
+        message: "Please provide blogId",
       });
     }
 
@@ -365,7 +395,6 @@ const addLikeOnBlog = async (req, res) => {
       success: true,
       message: "BlogPost liked successfully",
     });
-      
   } catch (error) {
     console.error("Error adding like:", error);
     return res.status(500).json({
@@ -376,13 +405,12 @@ const addLikeOnBlog = async (req, res) => {
   }
 };
 
-
 module.exports = {
-    createBlogs,
-    getAllBlogs,
-    getBlogById,
-    updateBlogById,
-    deleteBlogById,
-    addCommentOnBlog,
-    addLikeOnBlog
+  createBlogs,
+  getAllBlogs,
+  getBlogById,
+  updateBlogById,
+  deleteBlogById,
+  addCommentOnBlog,
+  addLikeOnBlog,
 };
