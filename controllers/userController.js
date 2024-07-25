@@ -13,10 +13,7 @@ const register = async (req, res) => {
     if (userExist) {
       return res.status(400).json({ message: "Email already exists" });
     }
-
-
-
-    const userCreated = await User.create({
+     const userCreated = await User.create({
       userName,
       email,
       password, 
@@ -25,7 +22,7 @@ const register = async (req, res) => {
     res.status(201).json({
       message: {
         userName,
-            email,
+        email,
         password,
       },
       token,
@@ -67,8 +64,8 @@ const login = async (req, res) => {
 
 
 
-
- const forgetPassword = async (req, res) => {
+const forgetPassword = async (req, res) => {
+   
    try {
      const user = await User.findOne({ email: req.body.email });
 
@@ -112,6 +109,8 @@ const login = async (req, res) => {
      res.status(500).send({ message: err.message });
    }
  };
+
+
 
  const resetPassword = async (req, res) => {
    try {

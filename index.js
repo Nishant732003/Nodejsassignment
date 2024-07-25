@@ -5,12 +5,14 @@ const userRoutes = require("./routes/userRoutes");
 const blogRoutes = require("./routes/blogRoutes");
 const connectDB = require("./config/db");
 
+
 connectDB();
 const app = express();
 
 app.use(express.json());
 app.use(express.static(path.resolve("./public")));
 const PORT = process.env.PORT || 5000;
+
 
 
 //routes
@@ -27,8 +29,10 @@ app.use((req, res, next) => {
   next();
 });
 
+
 app.use("/api/v1/user", userRoutes);
 app.use("/api/v1/blogPost", blogRoutes);
+
 
 app.use((req, res, next) => {
   res.status(404).json({
@@ -36,6 +40,7 @@ app.use((req, res, next) => {
     message: "Route not found",
   });
 });
+
 
 app.listen(PORT, () => {
   console.log(

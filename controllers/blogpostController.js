@@ -1,8 +1,11 @@
 const Blog = require("../models/blogModels");
-
 const User  = require("../models/userModel");
 const uploadOnCloudinary = require("../fileUpload/cloudinary");
 const Comment = require("../models/commentSchema");
+const CryptoJS = require("crypto-js");
+
+
+const ENCRYPTION_KEY = process.env.ENCRYPTION_KEY; 
 
 const createBlogs = async (req, res) => {
   try {
@@ -26,7 +29,16 @@ const createBlogs = async (req, res) => {
 
     const coverImageURL = await uploadOnCloudinary(file);
 
-    const newBlog = new Blog({ title, body, coverImageURL, createdBy: user });
+    //encrypt the title and body
+    const encryptedTitle = CryptoJS.AES.encrypt(title, ENCRYPTION_KEY).toString();
+    const encryptedBody = CryptoJS.AES.encrypt(body, ENCRYPTION_KEY).toString();
+    
+    const newBlog = new Blog({
+      title:encryptedTitle,
+      body:encryptedBody,
+      coverImageURL,
+      createdBy: user,
+    });
 
     await newBlog.save();
     existingUser.blogs.push(newBlog);
@@ -35,7 +47,11 @@ const createBlogs = async (req, res) => {
     return res.status(201).send({
       success: true,
       message: "BlogPosts created",
-      newBlog,
+      newBlog: {
+        ...newBlog._doc,
+        title: title,
+        body:body,
+      },
     });
   } catch (error) {
     console.log(error);
@@ -47,17 +63,36 @@ const createBlogs = async (req, res) => {
   }
 };
 
+
 const getAllBlogs = async (req, res) => {
   try {
     const blogs = await Blog.find()
       .populate("createdBy", "userName email")
       .populate("comments")
       .populate("likes");
+     
+    const decryptedBlogs = blogs.map((blog) => {
+      const decryptedTitle = CryptoJS.AES.decrypt(
+        blog.title,
+        ENCRYPTION_KEY
+      ).toString(CryptoJS.enc.Utf8);
+
+      const decryptedBody = CryptoJS.AES.decrypt(
+        blog.body,
+        ENCRYPTION_KEY
+      ).toString(CryptoJS.enc.Utf8);
+
+      return {
+        ...blog._doc,
+        title: decryptedTitle,
+        body: decryptedBody,
+      };
+    });
 
     return res.status(200).json({
       success: true,
       message: "BlogPosts fetched successfully",
-      blogs,
+      blogs:decryptedBlogs,
     });
   } catch (error) {
     console.error("Error fetching blogs:", error);
@@ -69,6 +104,7 @@ const getAllBlogs = async (req, res) => {
   }
 };
 
+
 const getBlogById = async (req, res) => {
      console.log("getBlogById called with id:", req.params.id);
   try {
@@ -78,19 +114,45 @@ const getBlogById = async (req, res) => {
       .populate("createdBy", "userName email")
       .populate("comments")
       .populate("likes");
-      console.log("blogs", blog);
-    if (!blog) {
+    
+    console.log("blogs", blog);
+    
+     if (!blog) {
       return res.status(404).json({
         success: false,
         message: "BlogPost not found",
       });
     }
 
-    return res.status(200).json({
-      success: true,
-      message: "BlogPost fetched successfully",
-      blog,
-    });
+    try {
+      const decryptedTitle = CryptoJS.AES.decrypt(
+        blog.title,
+        ENCRYPTION_KEY
+      ).toString(CryptoJS.enc.Utf8);
+      const decryptedBody = CryptoJS.AES.decrypt(
+        blog.body,
+        ENCRYPTION_KEY
+      ).toString(CryptoJS.enc.Utf8);
+
+      const decryptedBlog = {
+        ...blog._doc,
+        title: decryptedTitle,
+        body: decryptedBody,
+      };
+
+      return res.status(200).json({
+        success: true,
+        message: "BlogPost fetched successfully",
+        blog: decryptedBlog,
+      });
+    } catch (decryptionError) {
+      console.error("Error decrypting blog data:", decryptionError);
+      return res.status(500).json({
+        success: false,
+        message: "Error decrypting blog data",
+        error: decryptionError.message,
+      });
+    }
   } catch (error) {
     console.error("Error fetching blog:", error);
     return res.status(500).json({
@@ -100,6 +162,7 @@ const getBlogById = async (req, res) => {
     });
   }
 };
+
 
 const updateBlogById = async (req, res) => {
   try {
@@ -115,9 +178,23 @@ const updateBlogById = async (req, res) => {
       });
     }
 
-    if (title) blog.title = title;
-    if (body)  blog.body = body;
-    if (user)  blog.createdBy = user;
+    if (title) {
+      const encryptedTitle = CryptoJS.AES.encrypt(
+        title,
+        ENCRYPTION_KEY
+      ).toString();
+      blog.title = encryptedTitle;
+    }
+
+    if (body) {
+      const encryptedBody = CryptoJS.AES.encrypt(
+        body,
+        ENCRYPTION_KEY
+      ).toString();
+      blog.body = encryptedBody;
+    }
+
+    if (user) blog.createdBy = user;
 
     if (file) {
       const coverImageURL = await uploadOnCloudinary(file);
@@ -126,12 +203,26 @@ const updateBlogById = async (req, res) => {
 
     await blog.save();
 
+    // Decrypt the data before sending the response
+    const decryptedBlog = {
+      ...blog._doc,
+      title:
+        title ||
+        CryptoJS.AES.decrypt(blog.title, ENCRYPTION_KEY).toString(
+          CryptoJS.enc.Utf8
+        ),
+      body:
+        body ||
+        CryptoJS.AES.decrypt(blog.body, ENCRYPTION_KEY).toString(
+          CryptoJS.enc.Utf8
+        ),
+    };
+
     return res.status(200).json({
       success: true,
       message: "BlogPost updated successfully",
       blog,
     });
-      
   } catch (error) {
     console.error("Error updating blog:", error);
     return res.status(500).json({
@@ -141,6 +232,7 @@ const updateBlogById = async (req, res) => {
     });
   }
 };
+
 
 const deleteBlogById = async (req, res) => {
   try {
@@ -173,6 +265,7 @@ const deleteBlogById = async (req, res) => {
   }
 };
 
+
 const addCommentOnBlog = async (req, res) => {
   console.log("Received request body:", req.body);
   try {
@@ -194,16 +287,32 @@ const addCommentOnBlog = async (req, res) => {
       });
     }
 
-    const newComment = new Comment({ content, createdBy: user, blogId });
+    const encryptedContent = CryptoJS.AES.encrypt(
+      content,
+      ENCRYPTION_KEY
+    ).toString();
+
+    const newComment = new Comment({
+      content: encryptedContent,
+      createdBy: user,
+      blogId,
+    });
+    
     await newComment.save();
 
     existingBlog.comments.push(newComment._id);
     await existingBlog.save();
 
+    // Decrypt the content before sending the response
+    const decryptedComment = {
+      ...newComment._doc,
+      content: content,
+    };
+
     return res.status(201).json({
       success: true,
       message: "Comment added successfully",
-      comment: newComment,
+      comment: decryptedComment,
     });
   } catch (error) {
     console.error("Error adding comment:", error);
@@ -259,6 +368,7 @@ const addLikeOnBlog = async (req, res) => {
     });
   }
 };
+
 
 module.exports = {
     createBlogs,
