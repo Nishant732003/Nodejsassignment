@@ -53,6 +53,7 @@ const createBlogs = async (req, res) => {
         body:body,
       },
     });
+
   } catch (error) {
     console.log(error);
     return res.status(400).send({
@@ -94,6 +95,7 @@ const getAllBlogs = async (req, res) => {
       message: "BlogPosts fetched successfully",
       blogs:decryptedBlogs,
     });
+
   } catch (error) {
     console.error("Error fetching blogs:", error);
     return res.status(500).json({
@@ -108,6 +110,7 @@ const getAllBlogs = async (req, res) => {
 const getBlogById = async (req, res) => {
      console.log("getBlogById called with id:", req.params.id);
   try {
+
     const { id } = req.params;
       console.log("id", id);
     const blog = await Blog.findById(id)
@@ -125,10 +128,12 @@ const getBlogById = async (req, res) => {
     }
 
     try {
+
       const decryptedTitle = CryptoJS.AES.decrypt(
         blog.title,
         ENCRYPTION_KEY
       ).toString(CryptoJS.enc.Utf8);
+
       const decryptedBody = CryptoJS.AES.decrypt(
         blog.body,
         ENCRYPTION_KEY
@@ -145,6 +150,7 @@ const getBlogById = async (req, res) => {
         message: "BlogPost fetched successfully",
         blog: decryptedBlog,
       });
+
     } catch (decryptionError) {
       console.error("Error decrypting blog data:", decryptionError);
       return res.status(500).json({
@@ -165,6 +171,7 @@ const getBlogById = async (req, res) => {
 
 
 const updateBlogById = async (req, res) => {
+
   try {
     const { id } = req.params;
     const { title, body, user } = req.body;
@@ -176,7 +183,7 @@ const updateBlogById = async (req, res) => {
         success: false,
         message: "BlogPost not found",
       });
-    }
+    };
 
     if (title) {
       const encryptedTitle = CryptoJS.AES.encrypt(
@@ -221,7 +228,7 @@ const updateBlogById = async (req, res) => {
     return res.status(200).json({
       success: true,
       message: "BlogPost updated successfully",
-      blog,
+      blog:decryptedBlog,
     });
   } catch (error) {
     console.error("Error updating blog:", error);
@@ -297,7 +304,7 @@ const addCommentOnBlog = async (req, res) => {
       createdBy: user,
       blogId,
     });
-    
+
     await newComment.save();
 
     existingBlog.comments.push(newComment._id);
